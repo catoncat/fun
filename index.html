@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fun Blog - Issues as Posts</title>
+    <meta name="description" content="A blog powered by GitHub Issues with archive and tag support">
     <style>
         * {
             margin: 0;
@@ -46,6 +47,50 @@
             font-size: 1.1em;
         }
         
+        .last-updated {
+            text-align: center;
+            color: #95a5a6;
+            font-size: 0.9em;
+            margin-bottom: 30px;
+        }
+        
+        .tag-filters {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .tag-filter {
+            display: inline-block;
+            padding: 6px 12px;
+            margin: 3px;
+            background: #e9ecef;
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.2s;
+        }
+        
+        .tag-filter:hover, .tag-filter.active {
+            background: #007bff;
+            color: white;
+        }
+        
+        .section-title {
+            color: #495057;
+            font-size: 1.3em;
+            margin: 30px 0 20px 0;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .posts-section:first-child .section-title {
+            margin-top: 0;
+        }
+        
         .blog-post {
             margin-bottom: 40px;
             padding-bottom: 30px;
@@ -56,9 +101,13 @@
             border-bottom: none;
         }
         
+        .blog-post.hidden {
+            display: none;
+        }
+        
         .post-title {
             color: #2980b9;
-            font-size: 1.8em;
+            font-size: 1.6em;
             margin-bottom: 10px;
             text-decoration: none;
         }
@@ -78,14 +127,9 @@
             line-height: 1.7;
         }
         
-        .post-content h2 {
+        .post-content h1, .post-content h2, .post-content h3 {
             color: #2c3e50;
             margin: 20px 0 10px 0;
-        }
-        
-        .post-content h3 {
-            color: #34495e;
-            margin: 15px 0 8px 0;
         }
         
         .post-content ul, .post-content ol {
@@ -128,7 +172,7 @@
         }
         
         .state-closed {
-            background: #dc3545;
+            background: #6c757d;
             color: white;
         }
         
@@ -138,26 +182,17 @@
         
         .label {
             display: inline-block;
-            padding: 2px 6px;
-            background: #e1e4e8;
-            color: #586069;
-            border-radius: 10px;
+            padding: 3px 8px;
+            border-radius: 12px;
             font-size: 0.75em;
             margin-right: 5px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: opacity 0.2s;
         }
         
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: #7f8c8d;
-        }
-        
-        .error {
-            background: #f8d7da;
-            color: #721c24;
-            padding: 15px;
-            border-radius: 4px;
-            margin-bottom: 20px;
+        .label:hover {
+            opacity: 0.8;
         }
         
         .no-posts {
@@ -166,204 +201,106 @@
             font-style: italic;
             padding: 40px;
         }
-        
-        .retry-btn {
-            background: #007bff;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            margin-top: 10px;
-        }
-        
-        .retry-btn:hover {
-            background: #0056b3;
-        }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
             <h1>🎉 Fun Blog</h1>
-            <p class="subtitle">Where GitHub Issues Become Blog Posts</p>
+            <p class="subtitle">Issues as Posts • Archive • Tags</p>
         </header>
         
-        <div id="loading" class="loading">
-            Loading blog posts... ⏳
+        <div class="last-updated">
+            Last updated: 10/21/2025, 8:05:08 AM UTC
         </div>
         
-        <div id="error" class="error" style="display: none;"></div>
+        <div class="tag-filters">
+         <button class="tag-filter active" data-tag="all">All Posts</button>
+         <button class="tag-filter" data-tag="announcement">announcement</button><button class="tag-filter" data-tag="blog">blog</button><button class="tag-filter" data-tag="enhancement">enhancement</button><button class="tag-filter" data-tag="featured">featured</button>
+       </div>
         
-        <div id="blog-posts"></div>
+        <div id="blog-posts">
+            
+      <section class="posts-section">
+        <h2 class="section-title">📝 Recent Posts</h2>
+        
+        <article class="blog-post" data-tags="enhancement,blog">
+          <h2>
+            <a href="https://github.com/catoncat/fun/issues/2" target="_blank" class="post-title">
+              Create a fun joke using the blog stack and GitHub issues
+            </a>
+            <span class="state-badge state-open">open</span>
+          </h2>
+          <div class="post-meta">
+            Published on October 21, 2025 at 07:53 AM UTC by catoncat
+            
+          </div>
+          <div class="labels"><span class="label" data-tag="enhancement" style="background-color: #a2eeef; color: #000000">enhancement</span><span class="label" data-tag="blog" style="background-color: #ededed; color: #000000">blog</span></div>
+          <div class="post-content">
+            Let's implement a feature that generates and posts fun jokes to the blog using the blog stack. The jokes should be inspired by the topics and contents of GitHub issues in this repository. This will add some lighthearted content to our blog and engage our contributors!<br><br><strong>Feature Requirements:</strong><br><ul><li>Automatically select or generate jokes based on recent or trending GitHub issues.</li></ul><br><ul><li>Integrate joke publishing into the existing blog stack workflow.</li></ul><br><ul><li>Ensure the jokes are tagged or categorized for easy discovery.</li></ul><br><ul><li>Optionally, allow contributors to submit jokes manually via issues.</li></ul><br><br><strong>Benefits:</strong><br><ul><li>Enhances community engagement.</li></ul><br><ul><li>Adds humor to project updates and posts.</li></ul><br><ul><li>Makes the blog more interactive and fun.</li></ul><br><br><strong>Next Steps:</strong><br><ul><li>Analyze current blog stack for integration points.</li></ul><br><ul><li>Draft initial joke templates based on issues.</li></ul><br><ul><li>Implement and test the joke generator/publisher.</li></ul><br><br><hr><br>If you have joke ideas or suggestions, please comment below!
+          </div>
+        </article>
+      
+        <article class="blog-post" data-tags="blog,announcement,featured">
+          <h2>
+            <a href="https://github.com/catoncat/fun/issues/1" target="_blank" class="post-title">
+              Welcome to Fun Blog! 🎉
+            </a>
+            <span class="state-badge state-open">open</span>
+          </h2>
+          <div class="post-meta">
+            Published on October 21, 2025 at 07:37 AM UTC by catoncat
+             • 1 comment
+          </div>
+          <div class="labels"><span class="label" data-tag="blog" style="background-color: #ededed; color: #000000">blog</span><span class="label" data-tag="announcement" style="background-color: #ededed; color: #000000">announcement</span><span class="label" data-tag="featured" style="background-color: #ededed; color: #000000">featured</span></div>
+          <div class="post-content">
+            Welcome to our new <strong>GitHub Pages blog</strong>! 🎉<br><br>This blog is powered by GitHub Issues, which means every issue becomes a blog post automatically. Here's what makes this approach awesome:<br><br><h2>Features</h2><br><ul><li><strong>Easy publishing</strong>: Just create an issue to publish a new post</li></ul><br><ul><li><strong>Markdown support</strong>: Write in markdown for rich formatting</li></ul><br><ul><li><strong>Comments</strong>: Readers can comment directly on issues</li></ul><br><ul><li><strong>Labels</strong>: Use labels to categorize your posts</li></ul><br><ul><li><strong>No build process</strong>: Pure client-side JavaScript</li></ul><br><br><h2>How it works</h2><br><ul><li>Create an issue in this repository</li></ul><br><ul><li>The GitHub Pages site fetches all issues via the GitHub API</li></ul><br><ul><li>Issues are displayed as blog posts with proper formatting</li></ul><br><ul><li>Comments, labels, and metadata are all preserved</li></ul><br><br><em>Happy blogging!</em> 📝<br><br><hr><br><br><h3>Code Example</h3><br>Here's a simple FizzBuzz implementation:<br><br><pre><code>javascript<br>for (let i = 1; i <= 100; i++) {<br>  if (i % 15 === 0) console.log('FizzBuzz');<br>  else if (i % 3 === 0) console.log('Fizz');<br>  else if (i % 5 === 0) console.log('Buzz');<br>  else console.log(i);<br>}<br></code></pre><br><br>Try it out and let me know what you think in the comments!
+          </div>
+        </article>
+      
+      </section>
+    
+        </div>
     </div>
-
+    
     <script>
-        const REPO_OWNER = 'catoncat';
-        const REPO_NAME = 'fun';
-        const API_URL = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/issues`;
-        
-        async function fetchIssues() {
-            console.log('Fetching issues from:', API_URL);
+        // Tag filtering functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const tagFilters = document.querySelectorAll('.tag-filter');
+            const blogPosts = document.querySelectorAll('.blog-post');
             
-            try {
-                const response = await fetch(`${API_URL}?state=all&sort=created&direction=desc`, {
-                    headers: {
-                        'Accept': 'application/vnd.github.v3+json'
-                    }
+            tagFilters.forEach(filter => {
+                filter.addEventListener('click', function() {
+                    const selectedTag = this.getAttribute('data-tag');
+                    
+                    // Update active filter
+                    tagFilters.forEach(f => f.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    // Show/hide posts based on tag
+                    blogPosts.forEach(post => {
+                        const postTags = post.getAttribute('data-tags').split(',');
+                        
+                        if (selectedTag === 'all' || postTags.includes(selectedTag)) {
+                            post.classList.remove('hidden');
+                        } else {
+                            post.classList.add('hidden');
+                        }
+                    });
                 });
-                
-                console.log('Response status:', response.status);
-                console.log('Response headers:', response.headers);
-                
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('API Error:', errorText);
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                
-                const issues = await response.json();
-                console.log('Fetched issues:', issues);
-                
-                return issues.filter(issue => !issue.pull_request); // Filter out pull requests
-            } catch (error) {
-                console.error('Error fetching issues:', error);
-                throw error;
-            }
-        }
-        
-        function formatDate(dateString) {
-            const options = { 
-                year: 'numeric', 
-                month: 'long', 
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            };
-            return new Date(dateString).toLocaleDateString('en-US', options);
-        }
-        
-        function markdownToHtml(markdown) {
-            if (!markdown) return '';
-            
-            // Enhanced markdown parsing
-            let html = markdown
-                // Headers
-                .replace(/^### (.*$)/gm, '<h3>$1</h3>')
-                .replace(/^## (.*$)/gm, '<h2>$1</h2>')
-                .replace(/^# (.*$)/gm, '<h1>$1</h1>')
-                // Bold and italic
-                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                // Code blocks
-                .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
-                // Inline code
-                .replace(/`(.*?)`/g, '<code>$1</code>')
-                // Links
-                .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
-                // Lists
-                .replace(/^- (.*$)/gm, '<li>$1</li>')
-                .replace(/^\d+\. (.*$)/gm, '<li>$1</li>')
-                // Horizontal rule
-                .replace(/^---$/gm, '<hr>')
-                // Line breaks
-                .replace(/\n/g, '<br>');
-            
-            // Wrap consecutive <li> elements in <ul>
-            html = html.replace(/(<li>.*<\/li>)/gs, function(match) {
-                return '<ul>' + match.replace(/<br>/g, '') + '</ul>';
             });
             
-            return html;
-        }
-        
-        function renderIssues(issues) {
-            const loadingEl = document.getElementById('loading');
-            const errorEl = document.getElementById('error');
-            const postsEl = document.getElementById('blog-posts');
-            
-            loadingEl.style.display = 'none';
-            
-            if (issues.length === 0) {
-                postsEl.innerHTML = '<div class="no-posts">No blog posts yet. <a href="https://github.com/catoncat/fun/issues/new" target="_blank">Create an issue</a> to write your first post!</div>';
-                return;
-            }
-            
-            const postsHtml = issues.map(issue => {
-                const labelsHtml = issue.labels && issue.labels.length > 0 
-                    ? `<div class="labels">${issue.labels.map(label => 
-                        `<span class="label">${label.name}</span>`
-                      ).join('')}</div>`
-                    : '';
-                
-                return `
-                    <article class="blog-post">
-                        <h2>
-                            <a href="${issue.html_url}" target="_blank" class="post-title">
-                                ${issue.title}
-                            </a>
-                            <span class="state-badge state-${issue.state.toLowerCase()}">${issue.state.toLowerCase()}</span>
-                        </h2>
-                        <div class="post-meta">
-                            Published on ${formatDate(issue.created_at)} by ${issue.user.login}
-                            ${issue.comments > 0 ? ` • ${issue.comments} comment${issue.comments === 1 ? '' : 's'}` : ''}
-                        </div>
-                        ${labelsHtml}
-                        <div class="post-content">
-                            ${markdownToHtml(issue.body) || '<em>No content</em>'}
-                        </div>
-                    </article>
-                `;
-            }).join('');
-            
-            postsEl.innerHTML = postsHtml;
-        }
-        
-        function showError(message) {
-            const loadingEl = document.getElementById('loading');
-            const errorEl = document.getElementById('error');
-            
-            loadingEl.style.display = 'none';
-            errorEl.style.display = 'block';
-            errorEl.innerHTML = `
-                <strong>Error loading blog posts:</strong> ${message}
-                <br><br>
-                <button class="retry-btn" onclick="loadBlogPosts()">Retry</button>
-                <br><br>
-                <small>If this persists, the repository might still be private or there could be rate limiting. 
-                <a href="https://github.com/catoncat/fun/issues" target="_blank">View issues directly on GitHub</a></small>
-            `;
-        }
-        
-        async function loadBlogPosts() {
-            const loadingEl = document.getElementById('loading');
-            const errorEl = document.getElementById('error');
-            
-            loadingEl.style.display = 'block';
-            errorEl.style.display = 'none';
-            
-            try {
-                const issues = await fetchIssues();
-                renderIssues(issues);
-            } catch (error) {
-                showError(error.message);
-            }
-        }
-        
-        // Load and render issues when page loads
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log('Page loaded, fetching issues...');
-            loadBlogPosts();
+            // Make label tags clickable for filtering
+            document.querySelectorAll('.label').forEach(label => {
+                label.addEventListener('click', function() {
+                    const tag = this.getAttribute('data-tag');
+                    const targetFilter = document.querySelector(`[data-tag="${tag}"]`);
+                    if (targetFilter) {
+                        targetFilter.click();
+                    }
+                });
+            });
         });
-        
-        // Fallback: try again after 2 seconds if still loading
-        setTimeout(() => {
-            const loadingEl = document.getElementById('loading');
-            if (loadingEl.style.display !== 'none') {
-                console.log('Still loading after 2s, retrying...');
-                loadBlogPosts();
-            }
-        }, 2000);
     </script>
 </body>
 </html>
