@@ -1,0 +1,3 @@
+# Trigger rebuild
+
+This file triggers the GitHub Actions workflow to regenerate the static blog.
