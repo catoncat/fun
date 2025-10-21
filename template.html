@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fun Blog - Issues as Posts</title>
+    <meta name="description" content="A blog powered by GitHub Issues with archive and tag support">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f8f9fa;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 20px;
+        }
+        
+        h1 {
+            color: #2c3e50;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: #7f8c8d;
+            font-size: 1.1em;
+        }
+        
+        .last-updated {
+            text-align: center;
+            color: #95a5a6;
+            font-size: 0.9em;
+            margin-bottom: 30px;
+        }
+        
+        .tag-filters {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .tag-filter {
+            display: inline-block;
+            padding: 6px 12px;
+            margin: 3px;
+            background: #e9ecef;
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.2s;
+        }
+        
+        .tag-filter:hover, .tag-filter.active {
+            background: #007bff;
+            color: white;
+        }
+        
+        .section-title {
+            color: #495057;
+            font-size: 1.3em;
+            margin: 30px 0 20px 0;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .posts-section:first-child .section-title {
+            margin-top: 0;
+        }
+        
+        .blog-post {
+            margin-bottom: 40px;
+            padding-bottom: 30px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .blog-post:last-child {
+            border-bottom: none;
+        }
+        
+        .blog-post.hidden {
+            display: none;
+        }
+        
+        .post-title {
+            color: #2980b9;
+            font-size: 1.6em;
+            margin-bottom: 10px;
+            text-decoration: none;
+        }
+        
+        .post-title:hover {
+            text-decoration: underline;
+        }
+        
+        .post-meta {
+            color: #95a5a6;
+            font-size: 0.9em;
+            margin-bottom: 15px;
+        }
+        
+        .post-content {
+            font-size: 1.1em;
+            line-height: 1.7;
+        }
+        
+        .post-content h1, .post-content h2, .post-content h3 {
+            color: #2c3e50;
+            margin: 20px 0 10px 0;
+        }
+        
+        .post-content ul, .post-content ol {
+            margin-left: 20px;
+            margin-bottom: 15px;
+        }
+        
+        .post-content code {
+            background: #f4f4f4;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Consolas', monospace;
+        }
+        
+        .post-content pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin: 15px 0;
+        }
+        
+        .post-content pre code {
+            background: none;
+            padding: 0;
+        }
+        
+        .state-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        
+        .state-open {
+            background: #28a745;
+            color: white;
+        }
+        
+        .state-closed {
+            background: #6c757d;
+            color: white;
+        }
+        
+        .labels {
+            margin-top: 10px;
+        }
+        
+        .label {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.75em;
+            margin-right: 5px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        
+        .label:hover {
+            opacity: 0.8;
+        }
+        
+        .no-posts {
+            text-align: center;
+            color: #7f8c8d;
+            font-style: italic;
+            padding: 40px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎉 Fun Blog</h1>
+            <p class="subtitle">Issues as Posts • Archive • Tags</p>
+        </header>
+        
+        <div class="last-updated">
+            Last updated: {{LAST_UPDATED}}
+        </div>
+        
+        {{TAG_FILTERS}}
+        
+        <div id="blog-posts">
+            {{BLOG_CONTENT}}
+        </div>
+    </div>
+    
+    <script>
+        // Tag filtering functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const tagFilters = document.querySelectorAll('.tag-filter');
+            const blogPosts = document.querySelectorAll('.blog-post');
+            
+            tagFilters.forEach(filter => {
+                filter.addEventListener('click', function() {
+                    const selectedTag = this.getAttribute('data-tag');
+                    
+                    // Update active filter
+                    tagFilters.forEach(f => f.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    // Show/hide posts based on tag
+                    blogPosts.forEach(post => {
+                        const postTags = post.getAttribute('data-tags').split(',');
+                        
+                        if (selectedTag === 'all' || postTags.includes(selectedTag)) {
+                            post.classList.remove('hidden');
+                        } else {
+                            post.classList.add('hidden');
+                        }
+                    });
+                });
+            });
+            
+            // Make label tags clickable for filtering
+            document.querySelectorAll('.label').forEach(label => {
+                label.addEventListener('click', function() {
+                    const tag = this.getAttribute('data-tag');
+                    const targetFilter = document.querySelector(`[data-tag="${tag}"]`);
+                    if (targetFilter) {
+                        targetFilter.click();
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>
