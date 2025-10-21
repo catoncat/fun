@@ -78,6 +78,41 @@
             line-height: 1.7;
         }
         
+        .post-content h2 {
+            color: #2c3e50;
+            margin: 20px 0 10px 0;
+        }
+        
+        .post-content h3 {
+            color: #34495e;
+            margin: 15px 0 8px 0;
+        }
+        
+        .post-content ul, .post-content ol {
+            margin-left: 20px;
+            margin-bottom: 15px;
+        }
+        
+        .post-content code {
+            background: #f4f4f4;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Consolas', monospace;
+        }
+        
+        .post-content pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin: 15px 0;
+        }
+        
+        .post-content pre code {
+            background: none;
+            padding: 0;
+        }
+        
         .state-badge {
             display: inline-block;
             padding: 4px 8px;
@@ -95,6 +130,20 @@
         .state-closed {
             background: #dc3545;
             color: white;
+        }
+        
+        .labels {
+            margin-top: 10px;
+        }
+        
+        .label {
+            display: inline-block;
+            padding: 2px 6px;
+            background: #e1e4e8;
+            color: #586069;
+            border-radius: 10px;
+            font-size: 0.75em;
+            margin-right: 5px;
         }
         
         .loading {
@@ -117,6 +166,20 @@
             font-style: italic;
             padding: 40px;
         }
+        
+        .retry-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        
+        .retry-btn:hover {
+            background: #0056b3;
+        }
     </style>
 </head>
 <body>
@@ -127,7 +190,7 @@
         </header>
         
         <div id="loading" class="loading">
-            Loading blog posts...
+            Loading blog posts... ⏳
         </div>
         
         <div id="error" class="error" style="display: none;"></div>
@@ -141,14 +204,27 @@
         const API_URL = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/issues`;
         
         async function fetchIssues() {
+            console.log('Fetching issues from:', API_URL);
+            
             try {
-                const response = await fetch(`${API_URL}?state=all&sort=created&direction=desc`);
+                const response = await fetch(`${API_URL}?state=all&sort=created&direction=desc`, {
+                    headers: {
+                        'Accept': 'application/vnd.github.v3+json'
+                    }
+                });
+                
+                console.log('Response status:', response.status);
+                console.log('Response headers:', response.headers);
                 
                 if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('API Error:', errorText);
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
                 
                 const issues = await response.json();
+                console.log('Fetched issues:', issues);
+                
                 return issues.filter(issue => !issue.pull_request); // Filter out pull requests
             } catch (error) {
                 console.error('Error fetching issues:', error);
@@ -170,13 +246,35 @@
         function markdownToHtml(markdown) {
             if (!markdown) return '';
             
-            // Simple markdown parsing (basic implementation)
-            return markdown
+            // Enhanced markdown parsing
+            let html = markdown
+                // Headers
+                .replace(/^### (.*$)/gm, '<h3>$1</h3>')
+                .replace(/^## (.*$)/gm, '<h2>$1</h2>')
+                .replace(/^# (.*$)/gm, '<h1>$1</h1>')
+                // Bold and italic
                 .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
                 .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                // Code blocks
+                .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
+                // Inline code
                 .replace(/`(.*?)`/g, '<code>$1</code>')
-                .replace(/\n/g, '<br>')
-                .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+                // Links
+                .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
+                // Lists
+                .replace(/^- (.*$)/gm, '<li>$1</li>')
+                .replace(/^\d+\. (.*$)/gm, '<li>$1</li>')
+                // Horizontal rule
+                .replace(/^---$/gm, '<hr>')
+                // Line breaks
+                .replace(/\n/g, '<br>');
+            
+            // Wrap consecutive <li> elements in <ul>
+            html = html.replace(/(<li>.*<\/li>)/gs, function(match) {
+                return '<ul>' + match.replace(/<br>/g, '') + '</ul>';
+            });
+            
+            return html;
         }
         
         function renderIssues(issues) {
@@ -187,27 +285,36 @@
             loadingEl.style.display = 'none';
             
             if (issues.length === 0) {
-                postsEl.innerHTML = '<div class="no-posts">No blog posts yet. Create an issue to write your first post!</div>';
+                postsEl.innerHTML = '<div class="no-posts">No blog posts yet. <a href="https://github.com/catoncat/fun/issues/new" target="_blank">Create an issue</a> to write your first post!</div>';
                 return;
             }
             
-            const postsHtml = issues.map(issue => `
-                <article class="blog-post">
-                    <h2>
-                        <a href="${issue.html_url}" target="_blank" class="post-title">
-                            ${issue.title}
-                        </a>
-                        <span class="state-badge state-${issue.state}">${issue.state}</span>
-                    </h2>
-                    <div class="post-meta">
-                        Published on ${formatDate(issue.created_at)} by ${issue.user.login}
-                        ${issue.comments > 0 ? ` • ${issue.comments} comment${issue.comments === 1 ? '' : 's'}` : ''}
-                    </div>
-                    <div class="post-content">
-                        ${markdownToHtml(issue.body) || '<em>No content</em>'}
-                    </div>
-                </article>
-            `).join('');
+            const postsHtml = issues.map(issue => {
+                const labelsHtml = issue.labels && issue.labels.length > 0 
+                    ? `<div class="labels">${issue.labels.map(label => 
+                        `<span class="label">${label.name}</span>`
+                      ).join('')}</div>`
+                    : '';
+                
+                return `
+                    <article class="blog-post">
+                        <h2>
+                            <a href="${issue.html_url}" target="_blank" class="post-title">
+                                ${issue.title}
+                            </a>
+                            <span class="state-badge state-${issue.state.toLowerCase()}">${issue.state.toLowerCase()}</span>
+                        </h2>
+                        <div class="post-meta">
+                            Published on ${formatDate(issue.created_at)} by ${issue.user.login}
+                            ${issue.comments > 0 ? ` • ${issue.comments} comment${issue.comments === 1 ? '' : 's'}` : ''}
+                        </div>
+                        ${labelsHtml}
+                        <div class="post-content">
+                            ${markdownToHtml(issue.body) || '<em>No content</em>'}
+                        </div>
+                    </article>
+                `;
+            }).join('');
             
             postsEl.innerHTML = postsHtml;
         }
@@ -218,18 +325,45 @@
             
             loadingEl.style.display = 'none';
             errorEl.style.display = 'block';
-            errorEl.textContent = `Error loading blog posts: ${message}`;
+            errorEl.innerHTML = `
+                <strong>Error loading blog posts:</strong> ${message}
+                <br><br>
+                <button class="retry-btn" onclick="loadBlogPosts()">Retry</button>
+                <br><br>
+                <small>If this persists, the repository might still be private or there could be rate limiting. 
+                <a href="https://github.com/catoncat/fun/issues" target="_blank">View issues directly on GitHub</a></small>
+            `;
         }
         
-        // Load and render issues when page loads
-        document.addEventListener('DOMContentLoaded', async () => {
+        async function loadBlogPosts() {
+            const loadingEl = document.getElementById('loading');
+            const errorEl = document.getElementById('error');
+            
+            loadingEl.style.display = 'block';
+            errorEl.style.display = 'none';
+            
             try {
                 const issues = await fetchIssues();
                 renderIssues(issues);
             } catch (error) {
                 showError(error.message);
             }
+        }
+        
+        // Load and render issues when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('Page loaded, fetching issues...');
+            loadBlogPosts();
         });
+        
+        // Fallback: try again after 2 seconds if still loading
+        setTimeout(() => {
+            const loadingEl = document.getElementById('loading');
+            if (loadingEl.style.display !== 'none') {
+                console.log('Still loading after 2s, retrying...');
+                loadBlogPosts();
+            }
+        }, 2000);
     </script>
 </body>
 </html>
