@@ -1,0 +1,370 @@
+name: Generate Static Blog from Issues
+
+on:
+  issues:
+    types: [opened, edited, closed, reopened, labeled, unlabeled]
+  schedule:
+    # Rebuild daily at 6 AM UTC to catch any updates
+    - cron: '0 6 * * *'
+  workflow_dispatch: # Allow manual trigger
+  push:
+    branches: [ main ]
+    paths: [ '.github/workflows/blog.yml', 'templates/**' ]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+  issues: read
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  generate-blog:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        
+    - name: Fetch issues and generate blog
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        REPO_OWNER: ${{ github.repository_owner }}
+        REPO_NAME: ${{ github.event.repository.name }}
+      run: |
+        # Create the blog generator script
+        cat > generate-blog.js << 'EOF'
+        const fs = require('fs');
+        const https = require('https');
+        
+        const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+        const REPO_OWNER = process.env.REPO_OWNER;
+        const REPO_NAME = process.env.REPO_NAME;
+        
+        async function fetchIssues() {
+          return new Promise((resolve, reject) => {
+            const options = {
+              hostname: 'api.github.com',
+              path: `/repos/${REPO_OWNER}/${REPO_NAME}/issues?state=all&sort=created&direction=desc&per_page=100`,
+              method: 'GET',
+              headers: {
+                'User-Agent': 'GitHub-Pages-Blog-Generator',
+                'Authorization': `Bearer ${GITHUB_TOKEN}`,
+                'Accept': 'application/vnd.github.v3+json'
+              }
+            };
+            
+            const req = https.request(options, (res) => {
+              let data = '';
+              res.on('data', chunk => data += chunk);
+              res.on('end', () => {
+                if (res.statusCode === 200) {
+                  const issues = JSON.parse(data).filter(issue => !issue.pull_request);
+                  resolve(issues);
+                } else {
+                  reject(new Error(`API returned ${res.statusCode}: ${data}`));
+                }
+              });
+            });
+            
+            req.on('error', reject);
+            req.end();
+          });
+        }
+        
+        function formatDate(dateString) {
+          const options = { 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          };
+          return new Date(dateString).toLocaleDateString('en-US', options);
+        }
+        
+        function markdownToHtml(markdown) {
+          if (!markdown) return '';
+          
+          let html = markdown
+            // Headers
+            .replace(/^### (.*$)/gm, '<h3>$1</h3>')
+            .replace(/^## (.*$)/gm, '<h2>$1</h2>')
+            .replace(/^# (.*$)/gm, '<h1>$1</h1>')
+            // Bold and italic
+            .replace(/\\*\\*(.*?)\\*\\*/g, '<strong>$1</strong>')
+            .replace(/\\*(.*?)\\*/g, '<em>$1</em>')
+            // Code blocks
+            .replace(/```([\\s\\S]*?)```/g, '<pre><code>$1</code></pre>')
+            // Inline code
+            .replace(/`(.*?)`/g, '<code>$1</code>')
+            // Links
+            .replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, '<a href="$2" target="_blank">$1</a>')
+            // Lists
+            .replace(/^- (.*$)/gm, '<li>$1</li>')
+            .replace(/^\\d+\\. (.*$)/gm, '<li>$1</li>')
+            // Horizontal rule
+            .replace(/^---$/gm, '<hr>')
+            // Line breaks
+            .replace(/\\n/g, '<br>');
+          
+          // Wrap consecutive <li> elements in <ul>
+          html = html.replace(/(<li>.*?<\/li>(?:\\s*<li>.*?<\/li>)*)/gs, '<ul>$1</ul>');
+          
+          return html;
+        }
+        
+        function generateHTML(issues) {
+          const postsHtml = issues.map(issue => {
+            const labelsHtml = issue.labels && issue.labels.length > 0 
+              ? `<div class="labels">${issue.labels.map(label => 
+                  `<span class="label" style="background-color: #${label.color || 'e1e4e8'}">${label.name}</span>`
+                ).join('')}</div>`
+              : '';
+            
+            return `
+              <article class="blog-post">
+                <h2>
+                  <a href="${issue.html_url}" target="_blank" class="post-title">
+                    ${issue.title}
+                  </a>
+                  <span class="state-badge state-${issue.state.toLowerCase()}">${issue.state.toLowerCase()}</span>
+                </h2>
+                <div class="post-meta">
+                  Published on ${formatDate(issue.created_at)} by ${issue.user.login}
+                  ${issue.comments > 0 ? ` • ${issue.comments} comment${issue.comments === 1 ? '' : 's'}` : ''}
+                </div>
+                ${labelsHtml}
+                <div class="post-content">
+                  ${markdownToHtml(issue.body) || '<em>No content</em>'}
+                </div>
+              </article>
+            `;
+          }).join('');
+          
+          return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fun Blog - Issues as Posts</title>
+    <meta name="description" content="A blog powered by GitHub Issues">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f8f9fa;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 20px;
+        }
+        
+        h1 {
+            color: #2c3e50;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: #7f8c8d;
+            font-size: 1.1em;
+        }
+        
+        .last-updated {
+            text-align: center;
+            color: #95a5a6;
+            font-size: 0.9em;
+            margin-bottom: 30px;
+        }
+        
+        .blog-post {
+            margin-bottom: 40px;
+            padding-bottom: 30px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .blog-post:last-child {
+            border-bottom: none;
+        }
+        
+        .post-title {
+            color: #2980b9;
+            font-size: 1.8em;
+            margin-bottom: 10px;
+            text-decoration: none;
+        }
+        
+        .post-title:hover {
+            text-decoration: underline;
+        }
+        
+        .post-meta {
+            color: #95a5a6;
+            font-size: 0.9em;
+            margin-bottom: 15px;
+        }
+        
+        .post-content {
+            font-size: 1.1em;
+            line-height: 1.7;
+        }
+        
+        .post-content h2 {
+            color: #2c3e50;
+            margin: 20px 0 10px 0;
+        }
+        
+        .post-content h3 {
+            color: #34495e;
+            margin: 15px 0 8px 0;
+        }
+        
+        .post-content ul, .post-content ol {
+            margin-left: 20px;
+            margin-bottom: 15px;
+        }
+        
+        .post-content code {
+            background: #f4f4f4;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: 'Monaco', 'Consolas', monospace;
+        }
+        
+        .post-content pre {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin: 15px 0;
+        }
+        
+        .post-content pre code {
+            background: none;
+            padding: 0;
+        }
+        
+        .state-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        
+        .state-open {
+            background: #28a745;
+            color: white;
+        }
+        
+        .state-closed {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .labels {
+            margin-top: 10px;
+        }
+        
+        .label {
+            display: inline-block;
+            padding: 2px 6px;
+            color: white;
+            border-radius: 10px;
+            font-size: 0.75em;
+            margin-right: 5px;
+            font-weight: 500;
+        }
+        
+        .no-posts {
+            text-align: center;
+            color: #7f8c8d;
+            font-style: italic;
+            padding: 40px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎉 Fun Blog</h1>
+            <p class="subtitle">Where GitHub Issues Become Blog Posts</p>
+        </header>
+        
+        <div class="last-updated">
+            Last updated: ${new Date().toLocaleString('en-US', { timeZone: 'UTC' })} UTC
+        </div>
+        
+        <div id="blog-posts">
+            ${issues.length > 0 ? postsHtml : '<div class="no-posts">No blog posts yet. <a href="https://github.com/' + REPO_OWNER + '/' + REPO_NAME + '/issues/new" target="_blank">Create an issue</a> to write your first post!</div>'}
+        </div>
+    </div>
+</body>
+</html>`;
+        }
+        
+        async function main() {
+          try {
+            console.log('Fetching issues...');
+            const issues = await fetchIssues();
+            console.log(`Found ${issues.length} issues`);
+            
+            const html = generateHTML(issues);
+            fs.writeFileSync('index.html', html);
+            console.log('Generated index.html successfully!');
+          } catch (error) {
+            console.error('Error:', error);
+            process.exit(1);
+          }
+        }
+        
+        main();
+        EOF
+        
+        # Run the blog generator
+        node generate-blog.js
+        
+    - name: Setup Pages
+      uses: actions/configure-pages@v4
+      
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: './'
+        
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
