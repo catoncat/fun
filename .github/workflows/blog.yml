@@ -4,12 +4,12 @@ on:
   issues:
     types: [opened, edited, closed, reopened, labeled, unlabeled]
   schedule:
-    # Rebuild daily at 6 AM UTC to catch any updates
+    # Rebuild daily at 6 AM UTC
     - cron: '0 6 * * *'
-  workflow_dispatch: # Allow manual trigger
+  workflow_dispatch:
   push:
     branches: [ main ]
-    paths: [ '.github/workflows/blog.yml', 'templates/**' ]
+    paths: [ '.github/workflows/blog.yml' ]
 
 permissions:
   contents: read
@@ -43,7 +43,6 @@ jobs:
         REPO_OWNER: ${{ github.repository_owner }}
         REPO_NAME: ${{ github.event.repository.name }}
       run: |
-        # Create the blog generator script
         cat > generate-blog.js << 'EOF'
         const fs = require('fs');
         const https = require('https');
@@ -98,60 +97,88 @@ jobs:
           if (!markdown) return '';
           
           let html = markdown
-            // Headers
-            .replace(/^### (.*$)/gm, '<h3>$1</h3>')
-            .replace(/^## (.*$)/gm, '<h2>$1</h2>')
-            .replace(/^# (.*$)/gm, '<h1>$1</h1>')
-            // Bold and italic
-            .replace(/\\*\\*(.*?)\\*\\*/g, '<strong>$1</strong>')
-            .replace(/\\*(.*?)\\*/g, '<em>$1</em>')
-            // Code blocks
-            .replace(/```([\\s\\S]*?)```/g, '<pre><code>$1</code></pre>')
-            // Inline code
+            .replace(/^### (.*$)/gim, '<h3>$1</h3>')
+            .replace(/^## (.*$)/gim, '<h2>$1</h2>')
+            .replace(/^# (.*$)/gim, '<h1>$1</h1>')
+            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+            .replace(/\*(.*?)\*/g, '<em>$1</em>')
+            .replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>')
             .replace(/`(.*?)`/g, '<code>$1</code>')
-            // Links
-            .replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, '<a href="$2" target="_blank">$1</a>')
-            // Lists
-            .replace(/^- (.*$)/gm, '<li>$1</li>')
-            .replace(/^\\d+\\. (.*$)/gm, '<li>$1</li>')
-            // Horizontal rule
-            .replace(/^---$/gm, '<hr>')
-            // Line breaks
-            .replace(/\\n/g, '<br>');
+            .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>')
+            .replace(/^- (.*$)/gim, '<li>$1</li>')
+            .replace(/^\d+\. (.*$)/gim, '<li>$1</li>')
+            .replace(/^---$/gim, '<hr>')
+            .replace(/\n/g, '<br>');
           
-          // Wrap consecutive <li> elements in <ul>
-          html = html.replace(/(<li>.*?<\/li>(?:\\s*<li>.*?<\/li>)*)/gs, '<ul>$1</ul>');
+          html = html.replace(/(<li>.*?<\/li>(?:\s*<li>.*?<\/li>)*)/gs, '<ul>$1</ul>');
           
           return html;
         }
         
         function generateHTML(issues) {
-          const postsHtml = issues.map(issue => {
-            const labelsHtml = issue.labels && issue.labels.length > 0 
-              ? `<div class="labels">${issue.labels.map(label => 
-                  `<span class="label" style="background-color: #${label.color || 'e1e4e8'}">${label.name}</span>`
-                ).join('')}</div>`
-              : '';
+          const openIssues = issues.filter(issue => issue.state === 'open');
+          const closedIssues = issues.filter(issue => issue.state === 'closed');
+          
+          // Collect all unique labels for tag filtering
+          const allLabels = new Set();
+          issues.forEach(issue => {
+            issue.labels.forEach(label => allLabels.add(label.name));
+          });
+          
+          function renderIssues(issueList, sectionTitle) {
+            if (issueList.length === 0) return '';
+            
+            const postsHtml = issueList.map(issue => {
+              const labelsHtml = issue.labels && issue.labels.length > 0 
+                ? `<div class="labels">${issue.labels.map(label => 
+                    `<span class="label tag-${label.name}" data-tag="${label.name}" style="background-color: #${label.color || 'e1e4e8'}; color: ${getContrastColor(label.color || 'e1e4e8')}">${label.name}</span>`
+                  ).join('')}</div>`
+                : '';
+              
+              return `
+                <article class="blog-post" data-tags="${issue.labels.map(l => l.name).join(',')}">
+                  <h2>
+                    <a href="${issue.html_url}" target="_blank" class="post-title">
+                      ${issue.title}
+                    </a>
+                    <span class="state-badge state-${issue.state.toLowerCase()}">${issue.state.toLowerCase()}</span>
+                  </h2>
+                  <div class="post-meta">
+                    Published on ${formatDate(issue.created_at)} by ${issue.user.login}
+                    ${issue.comments > 0 ? ` • ${issue.comments} comment${issue.comments === 1 ? '' : 's'}` : ''}
+                  </div>
+                  ${labelsHtml}
+                  <div class="post-content">
+                    ${markdownToHtml(issue.body) || '<em>No content</em>'}
+                  </div>
+                </article>
+              `;
+            }).join('');
             
             return `
-              <article class="blog-post">
-                <h2>
-                  <a href="${issue.html_url}" target="_blank" class="post-title">
-                    ${issue.title}
-                  </a>
-                  <span class="state-badge state-${issue.state.toLowerCase()}">${issue.state.toLowerCase()}</span>
-                </h2>
-                <div class="post-meta">
-                  Published on ${formatDate(issue.created_at)} by ${issue.user.login}
-                  ${issue.comments > 0 ? ` • ${issue.comments} comment${issue.comments === 1 ? '' : 's'}` : ''}
-                </div>
-                ${labelsHtml}
-                <div class="post-content">
-                  ${markdownToHtml(issue.body) || '<em>No content</em>'}
-                </div>
-              </article>
+              <section class="posts-section">
+                <h2 class="section-title">${sectionTitle}</h2>
+                ${postsHtml}
+              </section>
             `;
-          }).join('');
+          }
+          
+          function getContrastColor(hex) {
+            const r = parseInt(hex.substr(0, 2), 16);
+            const g = parseInt(hex.substr(2, 2), 16);
+            const b = parseInt(hex.substr(4, 2), 16);
+            const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+            return brightness > 125 ? '#000000' : '#ffffff';
+          }
+          
+          const tagFilterHtml = allLabels.size > 0 
+            ? `<div class="tag-filters">
+                 <button class="tag-filter active" data-tag="all">All Posts</button>
+                 ${Array.from(allLabels).map(tag => 
+                   `<button class="tag-filter" data-tag="${tag}">${tag}</button>`
+                 ).join('')}
+               </div>`
+            : '';
           
           return `<!DOCTYPE html>
 <html lang="en">
@@ -159,7 +186,7 @@ jobs:
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fun Blog - Issues as Posts</title>
-    <meta name="description" content="A blog powered by GitHub Issues">
+    <meta name="description" content="A blog powered by GitHub Issues with archive and tag support">
     <style>
         * {
             margin: 0;
@@ -209,6 +236,43 @@ jobs:
             margin-bottom: 30px;
         }
         
+        .tag-filters {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .tag-filter {
+            display: inline-block;
+            padding: 6px 12px;
+            margin: 3px;
+            background: #e9ecef;
+            border: none;
+            border-radius: 15px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.2s;
+        }
+        
+        .tag-filter:hover, .tag-filter.active {
+            background: #007bff;
+            color: white;
+        }
+        
+        .section-title {
+            color: #495057;
+            font-size: 1.3em;
+            margin: 30px 0 20px 0;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        
+        .posts-section:first-child .section-title {
+            margin-top: 0;
+        }
+        
         .blog-post {
             margin-bottom: 40px;
             padding-bottom: 30px;
@@ -219,9 +283,13 @@ jobs:
             border-bottom: none;
         }
         
+        .blog-post.hidden {
+            display: none;
+        }
+        
         .post-title {
             color: #2980b9;
-            font-size: 1.8em;
+            font-size: 1.6em;
             margin-bottom: 10px;
             text-decoration: none;
         }
@@ -241,14 +309,9 @@ jobs:
             line-height: 1.7;
         }
         
-        .post-content h2 {
+        .post-content h1, .post-content h2, .post-content h3 {
             color: #2c3e50;
             margin: 20px 0 10px 0;
-        }
-        
-        .post-content h3 {
-            color: #34495e;
-            margin: 15px 0 8px 0;
         }
         
         .post-content ul, .post-content ol {
@@ -291,7 +354,7 @@ jobs:
         }
         
         .state-closed {
-            background: #dc3545;
+            background: #6c757d;
             color: white;
         }
         
@@ -301,12 +364,17 @@ jobs:
         
         .label {
             display: inline-block;
-            padding: 2px 6px;
-            color: white;
-            border-radius: 10px;
+            padding: 3px 8px;
+            border-radius: 12px;
             font-size: 0.75em;
             margin-right: 5px;
             font-weight: 500;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        
+        .label:hover {
+            opacity: 0.8;
         }
         
         .no-posts {
@@ -321,17 +389,62 @@ jobs:
     <div class="container">
         <header>
             <h1>🎉 Fun Blog</h1>
-            <p class="subtitle">Where GitHub Issues Become Blog Posts</p>
+            <p class="subtitle">Issues as Posts • Archive • Tags</p>
         </header>
         
         <div class="last-updated">
             Last updated: ${new Date().toLocaleString('en-US', { timeZone: 'UTC' })} UTC
         </div>
         
+        ${tagFilterHtml}
+        
         <div id="blog-posts">
-            ${issues.length > 0 ? postsHtml : '<div class="no-posts">No blog posts yet. <a href="https://github.com/' + REPO_OWNER + '/' + REPO_NAME + '/issues/new" target="_blank">Create an issue</a> to write your first post!</div>'}
+            ${issues.length === 0 
+              ? '<div class="no-posts">No blog posts yet. <a href="https://github.com/' + REPO_OWNER + '/' + REPO_NAME + '/issues/new" target="_blank">Create an issue</a> to write your first post!</div>'
+              : (renderIssues(openIssues, '📝 Recent Posts') + renderIssues(closedIssues, '📁 Archive'))
+            }
         </div>
     </div>
+    
+    <script>
+        // Tag filtering functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const tagFilters = document.querySelectorAll('.tag-filter');
+            const blogPosts = document.querySelectorAll('.blog-post');
+            
+            tagFilters.forEach(filter => {
+                filter.addEventListener('click', function() {
+                    const selectedTag = this.getAttribute('data-tag');
+                    
+                    // Update active filter
+                    tagFilters.forEach(f => f.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    // Show/hide posts based on tag
+                    blogPosts.forEach(post => {
+                        const postTags = post.getAttribute('data-tags').split(',');
+                        
+                        if (selectedTag === 'all' || postTags.includes(selectedTag)) {
+                            post.classList.remove('hidden');
+                        } else {
+                            post.classList.add('hidden');
+                        }
+                    });
+                });
+            });
+            
+            // Make label tags clickable for filtering
+            document.querySelectorAll('.label').forEach(label => {
+                label.addEventListener('click', function() {
+                    const tag = this.getAttribute('data-tag');
+                    const targetFilter = document.querySelector(`[data-tag="${tag}"]`);
+                    if (targetFilter) {
+                        targetFilter.click();
+                    }
+                });
+            });
+        });
+    </script>
 </body>
 </html>`;
         }
@@ -354,7 +467,6 @@ jobs:
         main();
         EOF
         
-        # Run the blog generator
         node generate-blog.js
         
     - name: Setup Pages
